@@ -1,0 +1,8 @@
+---
+# SQM (шейпинг) — как на эталоне: cake + piece_of_cake.qos на WAN.
+sqm_enabled: true
+sqm_download_kbit: 85000
+sqm_upload_kbit: 10000
+sqm_qdisc: cake
+sqm_script: piece_of_cake.qos
+sqm_linklayer: none

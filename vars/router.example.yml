@@ -1,0 +1,45 @@
+# Шаблон: скопируй в vars/router.yml (он в .gitignore) и заполни.
+#
+#   cp vars/router.example.yml vars/router.yml
+#   ansible-playbook playbooks/site.yml -e @vars/router.yml
+#
+# hostname и community-списки Forkop спрашиваются при запуске playbook
+# (или задаются через -e router_hostname=... -e forkop_community_lists_input=...).
+
+---
+# --- подключение -----------------------------------------------------------
+# IP роутера после прошивки. Пароль — текущий; на свежей прошивке пустой.
+ansible_host: 192.168.1.1
+ansible_password: ""
+
+# Если на контроллере нет sshpass, раскомментируй:
+# ansible_connection: paramiko
+
+# --- роутер ----------------------------------------------------------------
+# Пароль root, который будет установлен в конце playbook.
+new_root_password: ""
+
+# --- WAN -------------------------------------------------------------------
+# WAN (PPPoE: логин, пароль, при необходимости клонирование MAC) настрой
+# заранее в LuCI или через uci. Playbook его не трогает, но требует, чтобы
+# WAN уже был поднят и был доступ в интернет.
+
+# --- Wi-Fi -----------------------------------------------------------------
+wifi_2g_ssid: ""
+wifi_2g_key: ""
+wifi_5g_ssid: ""
+wifi_5g_key: ""
+
+# --- Forkop: подписки ------------------------------------------------------
+# Секция main — основной маршрут.
+forkop_main_subscriptions:
+  - ""
+  - ""
+
+# Секция russian — RU-домены через RU-узлы.
+forkop_russian_subscription: ""
+
+# --- SQM -------------------------------------------------------------------
+sqm_enabled: true
+sqm_download_kbit: 85000
+sqm_upload_kbit: 10000

@@ -1,0 +1,68 @@
+---
+# Итоговые проверки: одна поездка на роутер, понятный отчёт.
+- name: Проверить состояние роутера
+  ansible.builtin.raw: |
+    fails=0
+    add_ok() { echo "OK   $1"; }
+    add_fail() { echo "FAIL $1"; fails=$((fails + 1)); }
+
+    opkg list-installed 2>/dev/null | grep -q '^forkop ' && add_ok "forkop установлен" || add_fail "forkop не установлен"
+    /etc/init.d/forkop enabled >/dev/null 2>&1 && add_ok "forkop включён в автозапуск" || add_fail "forkop не включён в автозапуск"
+    /etc/init.d/forkop status 2>/dev/null | grep -q running && add_ok "служба forkop запущена" || add_fail "служба forkop не запущена"
+    pgrep -f '[s]ing-box run' >/dev/null 2>&1 && add_ok "sing-box запущен" || add_fail "sing-box не запущен"
+    nslookup example.org 127.0.0.42 >/dev/null 2>&1 && add_ok "DNS Forkop (127.0.0.42) отвечает" || add_fail "DNS Forkop (127.0.0.42) не отвечает"
+
+    if [ "$(uci -q get dhcp.@dnsmasq[0].noresolv)" = "1" ] && uci -q get dhcp.@dnsmasq[0].server | grep -q '127\.0\.0\.42'; then
+      add_ok "dnsmasq переведён на DNS Forkop"
+    else
+      add_fail "dnsmasq не переведён на DNS Forkop"
+    fi
+
+    wan_ip="$(ifstatus wan 2>/dev/null | jsonfilter -e '@["ipv4-address"][0].address' 2>/dev/null)"
+    [ -n "$wan_ip" ] && add_ok "WAN PPPoE поднят, адрес $wan_ip" || add_fail "WAN PPPoE не получил адрес"
+
+    if ip -6 addr show dev br-lan scope global 2>/dev/null | grep -q 'inet6'; then
+      add_fail "на br-lan есть глобальный IPv6"
+    else
+      add_ok "IPv6 на LAN выключен"
+    fi
+    ip -6 route show default 2>/dev/null | grep -q '^default' && add_fail "есть IPv6 default route" || add_ok "IPv6 default route отсутствует"
+
+    if iwinfo 2>/dev/null | grep -qF 'ESSID: "{{ wifi_2g_ssid }}"'; then
+      add_ok "Wi-Fi 2.4G: {{ wifi_2g_ssid }}"
+    else
+      add_fail "Wi-Fi 2.4G не поднялся ({{ wifi_2g_ssid }})"
+    fi
+    if iwinfo 2>/dev/null | grep -qF 'ESSID: "{{ wifi_5g_ssid }}"'; then
+      add_ok "Wi-Fi 5G: {{ wifi_5g_ssid }}"
+    else
+      add_fail "Wi-Fi 5G не поднялся ({{ wifi_5g_ssid }})"
+    fi
+
+    [ "$(uci -q get system.@system[0].hostname)" = "{{ router_hostname }}" ] && add_ok "hostname: {{ router_hostname }}" || add_fail "hostname не совпадает"
+
+    wan_dev="$(ifstatus wan 2>/dev/null | jsonfilter -e '@.l3_device' 2>/dev/null)"
+    if [ "{{ '1' if sqm_enabled else '0' }}" = "1" ]; then
+      tc qdisc show dev "$wan_dev" 2>/dev/null | grep -q cake && add_ok "SQM (cake) активен на $wan_dev" || add_fail "SQM не активен на $wan_dev"
+    fi
+
+    if [ "$fails" -eq 0 ]; then
+      echo VERIFY_OK
+      exit 0
+    fi
+    echo VERIFY_FAILED
+    exit 1
+  register: verify_result
+  changed_when: false
+  failed_when: false
+
+- name: Показать результат проверок
+  ansible.builtin.debug:
+    msg: "{{ verify_result.stdout_lines }}"
+
+- name: Убедиться, что всё в порядке
+  ansible.builtin.assert:
+    that:
+      - "'VERIFY_OK' in verify_result.stdout"
+    fail_msg: "Есть проблемы, см. отчёт выше."
+    quiet: true

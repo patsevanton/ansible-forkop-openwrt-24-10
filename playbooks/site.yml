@@ -1,0 +1,70 @@
+---
+# Настройка нового роутера Xiaomi AX3000T: OpenWrt 24.10 + Forkop + SQM.
+#
+# Предполагается, что роутер уже прошит OpenWrt 24.10 и доступен по SSH
+# (свежая прошивка: 192.168.1.1, root без пароля).
+#
+#   ansible-playbook playbooks/site.yml -e @vars/router.yml
+#
+- name: OpenWrt 24.10 + Forkop
+  hosts: openwrt
+  gather_facts: false
+  serial: 1
+
+  vars_prompt:
+    - name: router_hostname
+      prompt: "Hostname нового роутера"
+      private: false
+
+    - name: forkop_community_lists_input
+      prompt: "Community-списки Forkop через запятую (пусто — без списков)"
+      default: "russia_inside,youtube,telegram,github,cloudflare"
+      private: false
+
+  pre_tasks:
+    - name: Проверить hostname
+      ansible.builtin.assert:
+        that:
+          - router_hostname | length > 0
+        fail_msg: "Hostname не может быть пустым"
+        quiet: true
+
+    - name: Разобрать список community-списков
+      ansible.builtin.set_fact:
+        forkop_community_lists: >-
+          {{ forkop_community_lists_input.split(',') | map('trim') | reject('equalto', '') | list }}
+
+    - name: Проверить обязательные переменные
+      ansible.builtin.assert:
+        that:
+          - new_root_password | length >= 8
+          - wifi_2g_ssid | length > 0
+          - wifi_2g_key | length >= 8
+          - wifi_5g_ssid | length > 0
+          - wifi_5g_key | length >= 8
+          - forkop_main_subscriptions | select | list | length > 0
+          - forkop_russian_subscription | length > 0
+        fail_msg: >-
+          Не заданы обязательные переменные.
+          Возьми vars/router.example.yml за основу:
+          ansible-playbook playbooks/site.yml -e @vars/router.yml
+        quiet: true
+
+    - name: Проверить связь с роутером
+      ansible.builtin.raw: |
+        cat /etc/openwrt_release | grep -E "DISTRIB_RELEASE|DISTRIB_TARGET"
+      register: site_release
+      changed_when: false
+
+    - name: Показать версию прошивки
+      ansible.builtin.debug:
+        msg: "{{ site_release.stdout_lines }}"
+
+  roles:
+    - network
+    - base
+    - wireless
+    - forkop
+    - sqm
+    - verify
+    - finalize

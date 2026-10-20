@@ -1,0 +1,60 @@
+---
+- name: Настроить Wi-Fi
+  ansible.builtin.include_role:
+    name: uci
+    tasks_from: apply
+  vars:
+    uci_packages:
+      - wireless
+    uci_ops:
+      # 2.4 ГГц
+      - { op: set, path: wireless.radio0.disabled, value: "0" }
+      - { op: set, path: wireless.radio0.channel, value: "{{ wifi_2g_channel }}" }
+      - { op: set, path: wireless.radio0.htmode, value: "{{ wifi_2g_htmode }}" }
+      - { op: set, path: wireless.radio0.cell_density, value: "0" }
+      - { op: set, path: wireless.default_radio0.disabled, value: "0" }
+      - { op: set, path: wireless.default_radio0.ssid, value: "{{ wifi_2g_ssid }}" }
+      - { op: set, path: wireless.default_radio0.encryption, value: psk2 }
+      - { op: set, path: wireless.default_radio0.key, value: "{{ wifi_2g_key }}" }
+      - { op: set, path: wireless.default_radio0.network, value: lan }
+      - { op: set, path: wireless.default_radio0.mode, value: ap }
+      # 5 ГГц
+      - { op: set, path: wireless.radio1.disabled, value: "0" }
+      - { op: set, path: wireless.radio1.channel, value: "{{ wifi_5g_channel }}" }
+      - { op: set, path: wireless.radio1.htmode, value: "{{ wifi_5g_htmode }}" }
+      - { op: set, path: wireless.radio1.cell_density, value: "0" }
+      - { op: set, path: wireless.default_radio1.disabled, value: "0" }
+      - { op: set, path: wireless.default_radio1.ssid, value: "{{ wifi_5g_ssid }}" }
+      - { op: set, path: wireless.default_radio1.encryption, value: psk2 }
+      - { op: set, path: wireless.default_radio1.key, value: "{{ wifi_5g_key }}" }
+      - { op: set, path: wireless.default_radio1.network, value: lan }
+      - { op: set, path: wireless.default_radio1.mode, value: ap }
+    uci_reload_cmd: wifi reload
+
+- name: Дождаться подъёма точек доступа
+  ansible.builtin.raw: |
+    i=0
+    while [ "$i" -lt 15 ]; do
+      if [ "$(iwinfo 2>/dev/null | grep -c 'ESSID:')" -ge 2 ]; then
+        iwinfo | grep -E 'ESSID|Channel'
+        echo WIFI_UP
+        exit 0
+      fi
+      i=$((i + 1))
+      sleep 2
+    done
+    echo WIFI_DOWN
+    iwinfo
+    exit 1
+  register: wireless_state
+  changed_when: false
+  failed_when: false
+
+- name: Проверить, что Wi-Fi поднялся
+  ansible.builtin.assert:
+    that:
+      - "'WIFI_UP' in wireless_state.stdout"
+    fail_msg: >-
+      Wi-Fi не поднялся. Вывод с роутера:
+      {{ wireless_state.stdout }}
+    quiet: true

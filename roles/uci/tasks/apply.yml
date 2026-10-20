@@ -1,0 +1,20 @@
+---
+- name: Сгенерировать скрипт применения настроек
+  ansible.builtin.set_fact:
+    _uci_script: "{{ lookup('template', 'uci_apply.sh.j2') }}"
+
+- name: Применить настройки uci
+  ansible.builtin.raw: |
+    sh <<'ANSIBLE_UCI_EOF'
+    {{ _uci_script }}
+    ANSIBLE_UCI_EOF
+  register: uci_result
+  changed_when: "'UCI_CHANGED' in uci_result.stdout"
+  failed_when: uci_result.rc != 0
+
+- name: Перезагрузить сервис после изменений
+  ansible.builtin.raw: "{{ uci_reload_cmd }}"
+  when:
+    - uci_reload_cmd | length > 0
+    - uci_result is changed
+  changed_when: true

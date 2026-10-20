@@ -1,0 +1,60 @@
+---
+- name: Снять конфигурацию с эталонного роутера
+  hosts: reference
+  gather_facts: false
+
+  tasks:
+    - name: Запомнить каталог дампа
+      ansible.builtin.set_fact:
+        dump_dir: >-
+          {{ playbook_dir }}/../backup/{{ inventory_hostname }}-{{ now(fmt='%Y%m%d-%H%M%S', utc=true) }}
+
+    - name: Создать каталог дампа
+      ansible.builtin.file:
+        path: "{{ dump_dir }}"
+        state: directory
+        mode: "0700"
+      delegate_to: localhost
+
+    - name: Снять общий конфиг (uci export)
+      ansible.builtin.raw: uci export
+      register: dump_uci
+      changed_when: false
+
+    - name: Снять конфиг Forkop
+      ansible.builtin.raw: cat /etc/config/forkop
+      register: dump_forkop
+      changed_when: false
+
+    - name: Снять список пакетов
+      ansible.builtin.raw: opkg list-installed
+      register: dump_pkgs
+      changed_when: false
+
+    - name: Снять сведения о железе и прошивке
+      ansible.builtin.raw: |
+        cat /etc/openwrt_release
+        echo
+        cat /tmp/sysinfo/model 2>/dev/null
+        cat /tmp/sysinfo/board_name 2>/dev/null
+        uname -a
+      register: dump_sys
+      changed_when: false
+
+    - name: Сохранить дампы
+      ansible.builtin.copy:
+        content: "{{ item.content }}"
+        dest: "{{ dump_dir }}/{{ item.name }}"
+        mode: "0600"
+      loop:
+        - { name: uci-export.txt, content: "{{ dump_uci.stdout }}" }
+        - { name: forkop.conf, content: "{{ dump_forkop.stdout }}" }
+        - { name: packages.txt, content: "{{ dump_pkgs.stdout }}" }
+        - { name: system.txt, content: "{{ dump_sys.stdout }}" }
+      loop_control:
+        label: "{{ item.name }}"
+      delegate_to: localhost
+
+    - name: Куда сохранили
+      ansible.builtin.debug:
+        msg: "Дамп: {{ dump_dir }} (содержит пароли, каталог в .gitignore)"

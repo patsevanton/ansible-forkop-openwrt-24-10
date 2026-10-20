@@ -1,0 +1,36 @@
+---
+- name: Установить SQM
+  ansible.builtin.raw: |
+    set -e
+    missing=""
+    for p in sqm-scripts luci-app-sqm; do
+      opkg list-installed 2>/dev/null | grep -q "^$p " || missing="$missing $p"
+    done
+    if [ -n "$missing" ]; then
+      opkg update >/dev/null 2>&1 || true
+      opkg install $missing >/dev/null 2>&1 || opkg install $missing
+      echo SQM_INSTALLED
+    else
+      echo SQM_OK
+    fi
+  register: sqm_packages
+  changed_when: "'SQM_INSTALLED' in sqm_packages.stdout"
+
+- name: Настроить SQM на WAN
+  ansible.builtin.include_role:
+    name: uci
+    tasks_from: apply
+  vars:
+    uci_packages:
+      - sqm
+    uci_ops:
+      - { op: set, path: sqm.eth1.enabled, value: "{{ '1' if sqm_enabled else '0' }}" }
+      - { op: set, path: sqm.eth1.interface, value: pppoe-wan }
+      - { op: set, path: sqm.eth1.download, value: "{{ sqm_download_kbit }}" }
+      - { op: set, path: sqm.eth1.upload, value: "{{ sqm_upload_kbit }}" }
+      - { op: set, path: sqm.eth1.qdisc, value: "{{ sqm_qdisc }}" }
+      - { op: set, path: sqm.eth1.script, value: "{{ sqm_script }}" }
+      - { op: set, path: sqm.eth1.linklayer, value: "{{ sqm_linklayer }}" }
+      - { op: set, path: sqm.eth1.debug_logging, value: "0" }
+      - { op: set, path: sqm.eth1.verbosity, value: "5" }
+    uci_reload_cmd: /etc/init.d/sqm restart

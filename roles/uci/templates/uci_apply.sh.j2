@@ -1,0 +1,60 @@
+#!/bin/sh
+# Сгенерировано Ansible. Идемпотентно применяет uci-настройки.
+set -e
+
+changed=0
+
+u_set() {
+	cur="$(uci -q get "$1" 2>/dev/null || true)"
+	[ "$cur" = "$2" ] && return 0
+	uci set "$1=$2"
+	changed=1
+}
+
+u_del() {
+	uci -q get "$1" >/dev/null 2>&1 || return 0
+	uci delete "$1"
+	changed=1
+}
+
+u_list() {
+	path="$1"
+	shift
+	old="$(uci -q get "$path" 2>/dev/null | tr ' ' '\n' | sed '/^$/d' | sort)"
+	new="$(for v in "$@"; do printf '%s\n' "$v"; done | sed '/^$/d' | sort)"
+	[ "$old" = "$new" ] && return 0
+	uci -q delete "$path" || true
+	for v in "$@"; do
+		uci add_list "$path=$v"
+	done
+	changed=1
+}
+
+{# Собираем команды в список и склеиваем через перевод строки: так результат
+   не зависит от настроек Jinja (у Ansible включён trim_blocks). #}
+{% set lines = [] %}
+{% for op in uci_ops %}
+{% if op.op == 'set' %}
+{% set _ = lines.append('u_set ' ~ op.path ~ ' ' ~ (op.value | string | quote)) %}
+{% elif op.op == 'del' %}
+{% set _ = lines.append('u_del ' ~ op.path) %}
+{% elif op.op == 'list' %}
+{% set args = [] %}
+{% for v in op['values'] %}
+{% set _ = args.append(v | string | quote) %}
+{% endfor %}
+{% set _ = lines.append('u_list ' ~ op.path ~ ((' ' ~ args | join(' ')) if args else '')) %}
+{% elif op.op == 'raw' %}
+{% set _ = lines.append(op.cmd) %}
+{% endif %}
+{% endfor %}
+{{ lines | join('\n') }}
+
+if [ "$changed" -eq 1 ]; then
+	for pkg in {{ uci_packages | join(' ') }}; do
+		uci commit "$pkg"
+	done
+	echo UCI_CHANGED
+else
+	echo UCI_UNCHANGED
+fi

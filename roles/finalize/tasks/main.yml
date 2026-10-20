@@ -1,0 +1,36 @@
+---
+# Пароль root меняется последним: после этого шага SSH принимает
+# только новый пароль (его же нужно указывать в ansible_password
+# при повторных запусках).
+- name: Установить пароль root
+  ansible.builtin.raw: |
+    set -e
+    if command -v chpasswd >/dev/null 2>&1; then
+      printf 'root:%s\n' {{ new_root_password | quote }} | chpasswd
+    else
+      printf '%s\n%s\n' {{ new_root_password | quote }} {{ new_root_password | quote }} | passwd root >/dev/null 2>&1
+    fi
+    hash="$(grep '^root:' /etc/shadow | cut -d: -f2)"
+    case "$hash" in
+      ''|'!'|'*') echo PASSWORD_FAILED; exit 1 ;;
+    esac
+    echo PASSWORD_SET
+  register: finalize_password
+  changed_when: true
+  failed_when: false
+
+- name: Проверить, что пароль установлен
+  ansible.builtin.assert:
+    that:
+      - "'PASSWORD_SET' in finalize_password.stdout"
+    fail_msg: >-
+      Не удалось установить пароль root. Пароль остался прежним.
+      Смени его вручную: ssh root@{{ ansible_host }} passwd
+    quiet: true
+
+- name: Итог
+  ansible.builtin.debug:
+    msg:
+      - "Роутер {{ router_hostname }} настроен: {{ ansible_host }}"
+      - "LuCI: http://{{ ansible_host }}/ (Forkop -> секции main/russian)"
+      - "Дальше подключайся по SSH с новым паролем root."

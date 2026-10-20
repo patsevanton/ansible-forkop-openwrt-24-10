@@ -1,0 +1,25 @@
+---
+- name: Настроить hostname, NTP и отключить IPv6 на сетевом уровне
+  ansible.builtin.include_role:
+    name: uci
+    tasks_from: apply
+  vars:
+    uci_packages:
+      - system
+      - network
+      - dhcp
+    uci_ops:
+      - { op: set, path: "system.@system[0].hostname", value: "{{ router_hostname }}" }
+      - { op: list, path: system.ntp.server, values: "{{ ntp_servers }}" }
+      # IPv6 выключаем только в конфигурации сети, без глобальных sysctl
+      - { op: set, path: network.wan.ipv6, value: "0" }
+      - { op: del, path: network.lan.ip6assign }
+      - { op: del, path: network.lan.delegate }
+      - { op: del, path: network.wan6 }
+      - { op: set, path: dhcp.lan.dhcpv6, value: disabled }
+      - { op: del, path: dhcp.lan.ra }
+      - { op: del, path: dhcp.lan.ra_slaac }
+    uci_reload_cmd: >-
+      /etc/init.d/system reload;
+      /etc/init.d/network reload 2>/dev/null || true;
+      /etc/init.d/dnsmasq reload 2>/dev/null || true

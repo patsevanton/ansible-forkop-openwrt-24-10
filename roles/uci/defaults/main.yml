@@ -1,0 +1,17 @@
+---
+# Общий помощник: применение uci-настроек одной пачкой.
+#
+# Роутер без Python, поэтому вместо community.general.uci используется
+# сгенерированный shell-скрипт, который выполняется через raw.
+#
+# Вход (передаётся через include_role vars):
+#   uci_packages : список пакетов uci, которые нужно закоммитить
+#   uci_ops      : список операций:
+#                    {op: set,  path: network.lan.ipaddr, value: 192.168.1.1}
+#                    {op: del,  path: network.wan6}
+#                    {op: list, path: system.ntp.server, values: [a, b]}
+#                    {op: raw,  cmd: "uci set ..."}
+#   uci_reload_cmd : команда, которую выполнить, если что-то изменилось
+uci_ops: []
+uci_packages: []
+uci_reload_cmd: ""

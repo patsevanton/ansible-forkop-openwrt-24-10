@@ -1,0 +1,13 @@
+---
+forkop_installer_url: https://raw.githubusercontent.com/ushan0v/forkop/main/install.sh
+
+# Подписки задаются в vars/router.yml.
+forkop_main_subscriptions: []
+forkop_russian_subscription: ""
+
+# Community-списки задаются ответом на вопрос при запуске playbook.
+forkop_community_lists: []
+
+# Сколько ждать, пока поднимутся sing-box и DNS.
+forkop_start_retries: 40
+forkop_start_delay: 3

@@ -1,0 +1,123 @@
+---
+# Порядок: 1) установка штатным install.sh; 2) конфиг; 3) запуск и проверка.
+# Forkop сам переводит dnsmasq на 127.0.0.42 (noresolv=1, cachesize=0),
+# руками эти опции не трогаем — только проверяем в роли verify.
+
+- name: Установить Forkop, если его нет
+  ansible.builtin.raw: |
+    set -e
+    if opkg list-installed 2>/dev/null | grep -q '^forkop '; then
+      echo FORKOP_PRESENT
+      exit 0
+    fi
+    wget -q -O /tmp/forkop-install.sh {{ forkop_installer_url | quote }}
+    i=0
+    while [ "$i" -lt 3 ]; do
+      i=$((i + 1))
+      sh /tmp/forkop-install.sh < /dev/null >/tmp/forkop-install.log 2>&1 || true
+      if opkg list-installed 2>/dev/null | grep -q '^forkop '; then
+        tail -15 /tmp/forkop-install.log
+        echo FORKOP_INSTALLED
+        exit 0
+      fi
+      [ "$i" -lt 3 ] && sleep 5
+    done
+    tail -20 /tmp/forkop-install.log
+    echo FORKOP_INSTALL_FAILED
+    exit 1
+  register: forkop_install
+  changed_when: "'FORKOP_INSTALLED' in forkop_install.stdout"
+  failed_when: false
+
+- name: Проверить, что установка прошла
+  ansible.builtin.assert:
+    that:
+      - "'FORKOP_PRESENT' in forkop_install.stdout or 'FORKOP_INSTALLED' in forkop_install.stdout"
+    fail_msg: >-
+      Не удалось установить Forkop. Обычно причина — GitHub недоступен с роутера.
+      Попробуй повторить позже или поставить forkop + luci-app-forkop
+      вручную. Вывод установщика:
+      {{ forkop_install.stdout }}
+      {{ forkop_install.stderr }}
+    quiet: true
+
+- name: Отрисовать конфиг Forkop
+  ansible.builtin.set_fact:
+    # ровно один перевод строки в конце — иначе sha256 на роутере не совпадёт
+    forkop_config: "{{ (lookup('template', 'forkop.config.j2') | trim) ~ '\n' }}"
+    forkop_config_hash: "{{ ((lookup('template', 'forkop.config.j2') | trim) ~ '\n') | hash('sha256') }}"
+
+- name: Узнать контрольную сумму конфига на роутере
+  ansible.builtin.raw: "sha256sum /etc/config/forkop 2>/dev/null | cut -d' ' -f1"
+  register: forkop_remote_hash
+  changed_when: false
+  failed_when: false
+
+- name: Записать конфиг Forkop
+  ansible.builtin.raw: |
+    set -e
+    if [ -f /etc/config/forkop ] && [ ! -f /etc/config/forkop.orig ]; then
+      cp -f /etc/config/forkop /etc/config/forkop.orig
+    fi
+    cat > /etc/config/forkop.new <<'ANSIBLE_FORKOP_EOF'
+    {{ forkop_config }}
+    ANSIBLE_FORKOP_EOF
+    # оставляем ровно один перевод строки в конце (как в forkop_config_hash)
+    printf '%s\n' "$(cat /etc/config/forkop.new)" > /etc/config/forkop.new
+    mv /etc/config/forkop.new /etc/config/forkop
+    chmod 600 /etc/config/forkop
+    # конфиг должен читаться uci и содержать обе секции
+    uci -q get forkop.settings.dns_type >/dev/null
+    [ -n "$(uci -q get forkop.main)" ] && [ -n "$(uci -q get forkop.russian)" ] || { echo CONFIG_INVALID; exit 1; }
+    echo CONFIG_WRITTEN
+  when: forkop_remote_hash.stdout | trim != forkop_config_hash
+  register: forkop_write
+  changed_when: "'CONFIG_WRITTEN' in forkop_write.stdout"
+
+- name: Проверить, запущен ли Forkop
+  ansible.builtin.raw: /etc/init.d/forkop status 2>/dev/null | grep -q running && echo RUNNING || echo STOPPED
+  register: forkop_running
+  changed_when: false
+  failed_when: false
+
+- name: Включить и запустить Forkop
+  ansible.builtin.raw: |
+    set -e
+    /etc/init.d/forkop enable
+    /etc/init.d/forkop restart >/dev/null 2>&1 || true
+    echo FORKOP_STARTED
+  when: forkop_write is changed or 'RUNNING' not in forkop_running.stdout
+  changed_when: true
+
+- name: Дождаться sing-box и DNS Forkop
+  ansible.builtin.raw: |
+    i=0
+    while [ "$i" -lt {{ forkop_start_retries }} ]; do
+      if pgrep -f '[s]ing-box run' >/dev/null 2>&1 && nslookup example.org 127.0.0.42 >/dev/null 2>&1; then
+        echo FORKOP_UP
+        exit 0
+      fi
+      i=$((i + 1))
+      sleep {{ forkop_start_delay }}
+    done
+    echo FORKOP_DOWN
+    echo "--- status ---"
+    /etc/init.d/forkop status 2>&1 | tail -5
+    echo "--- sing-box ---"
+    pgrep -a sing-box | head -3
+    echo "--- log ---"
+    logread | grep -i forkop | tail -20
+    exit 1
+  register: forkop_up
+  changed_when: false
+  failed_when: false
+
+- name: Проверить, что Forkop работает
+  ansible.builtin.assert:
+    that:
+      - "'FORKOP_UP' in forkop_up.stdout"
+    fail_msg: >-
+      Forkop не поднялся: sing-box не запустился или DNS 127.0.0.42 не отвечает.
+      Проверь подписки и настройки в LuCI (Forkop).
+      {{ forkop_up.stdout }}
+    quiet: true

@@ -1,0 +1,45 @@
+---
+- name: Проверить, что WAN уже настроен и есть интернет
+  ansible.builtin.raw: |
+    i=0
+    while [ "$i" -lt 5 ]; do
+      if ifstatus wan 2>/dev/null | grep -q '"up": true' && ping -c 1 -W 3 1.1.1.1 >/dev/null 2>&1; then
+        echo WAN_OK
+        exit 0
+      fi
+      i=$((i + 1))
+      sleep 2
+    done
+    echo WAN_NOT_READY
+    ifstatus wan 2>/dev/null | head -20
+    exit 1
+  register: net_wan_ready
+  changed_when: false
+  failed_when: false
+
+- name: Объяснить, что WAN настраивается вручную
+  ansible.builtin.assert:
+    that:
+      - "'WAN_OK' in net_wan_ready.stdout"
+    fail_msg: >-
+      WAN не поднят или нет доступа в интернет. PPPoE (логин, пароль,
+      при необходимости MAC) playbook не настраивает — сделай это заранее
+      в LuCI (Сеть -> Интерфейсы -> WAN) или через uci, дождись интернета
+      и запусти playbook снова.
+      Вывод с роутера:
+      {{ net_wan_ready.stdout }}
+    quiet: true
+
+- name: Настроить LAN
+  ansible.builtin.include_role:
+    name: uci
+    tasks_from: apply
+  vars:
+    uci_packages:
+      - network
+    uci_ops:
+      - { op: set, path: network.lan.proto, value: static }
+      - { op: set, path: network.lan.ipaddr, value: "{{ lan_ip }}" }
+      - { op: set, path: network.lan.netmask, value: "{{ lan_netmask }}" }
+      - { op: set, path: network.globals.packet_steering, value: "1" }
+    uci_reload_cmd: /etc/init.d/network reload

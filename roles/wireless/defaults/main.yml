@@ -1,0 +1,12 @@
+---
+wifi_2g_ssid: ""
+wifi_2g_key: ""
+
+wifi_5g_ssid: ""
+wifi_5g_key: ""
+
+# Как на эталонном роутере.
+wifi_2g_channel: "1"
+wifi_2g_htmode: HE20
+wifi_5g_channel: "36"
+wifi_5g_htmode: HE80
