@@ -1,4 +1,23 @@
 ---
+- name: Узнать WAN-интерфейс для SQM
+  ansible.builtin.raw: ifstatus wan 2>/dev/null | jsonfilter -e '@.l3_device'
+  register: sqm_wan_device
+  changed_when: false
+  failed_when: false
+
+- name: Выбрать интерфейс SQM
+  ansible.builtin.set_fact:
+    sqm_interface: "{{ sqm_interface if sqm_interface else (sqm_wan_device.stdout | trim) }}"
+
+- name: Проверить, что WAN-интерфейс для SQM определён
+  ansible.builtin.assert:
+    that:
+      - sqm_interface | length > 0
+    fail_msg: >-
+      Не удалось определить WAN-интерфейс для SQM (ifstatus wan не вернул
+      l3_device). Проверь, что WAN поднят, и запусти playbook снова.
+    quiet: true
+
 - name: Установить SQM
   ansible.builtin.raw: |
     set -e
@@ -25,7 +44,7 @@
       - sqm
     uci_ops:
       - { op: set, path: sqm.eth1.enabled, value: "{{ '1' if sqm_enabled else '0' }}" }
-      - { op: set, path: sqm.eth1.interface, value: pppoe-wan }
+      - { op: set, path: sqm.eth1.interface, value: "{{ sqm_interface }}" }
       - { op: set, path: sqm.eth1.download, value: "{{ sqm_download_kbit }}" }
       - { op: set, path: sqm.eth1.upload, value: "{{ sqm_upload_kbit }}" }
       - { op: set, path: sqm.eth1.qdisc, value: "{{ sqm_qdisc }}" }

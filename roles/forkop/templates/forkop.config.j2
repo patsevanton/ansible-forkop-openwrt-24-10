@@ -73,10 +73,11 @@ config section 'russian'
 	option dashboard_detect_server_country 'flag_emoji'
 	list dashboard_include_countries 'RU'
 	option dashboard_include_proxy_parameters '0'
-{% for url in forkop_main_subscriptions if url | length > 0 %}
+{% for section in ['main', 'russian'] %}
+{% for url in forkop_subscriptions if url | length > 0 %}
 
 config subscription_url
-	option section 'main'
+	option section '{{ section }}'
 	option url '{{ url }}'
 	option subscription_update_enabled '1'
 	option subscription_update_interval '1h'
@@ -89,20 +90,7 @@ config subscription_url
 	option hide_urltest_group_outbounds '1'
 	option hide_detour_outbounds '1'
 {% endfor %}
-
-config subscription_url
-	option section 'russian'
-	option url '{{ forkop_russian_subscription }}'
-	option subscription_update_enabled '1'
-	option subscription_update_interval '1h'
-	option download_via_proxy_enabled '0'
-	option auto_user_agent '1'
-	option auto_hwid '1'
-	option show_dashboard_metadata '1'
-	option prefix_nodes '0'
-	option include_urltest_groups '1'
-	option hide_urltest_group_outbounds '1'
-	option hide_detour_outbounds '1'
+{% endfor %}
 
 config priority_group 'pg_77450153'
 	option section 'main'
@@ -130,6 +118,9 @@ config urltest
 	option detect_server_country 'flag_emoji'
 	list exclude_countries 'GB'
 	list exclude_countries 'RU'
+	# Узел "🚀 Авто выбор" из подписки падает с reality verification failed
+	# и ломает загрузку rule-set через URLTest при старте sing-box.
+	list exclude_outbounds '🚀 Авто выбор'
 	option exclude_proxy_parameters '0'
 
 config priority_level 'pl_primary'

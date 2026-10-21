@@ -13,6 +13,7 @@
       - { op: list, path: system.ntp.server, values: "{{ ntp_servers }}" }
       # IPv6 выключаем только в конфигурации сети, без глобальных sysctl
       - { op: set, path: network.wan.ipv6, value: "0" }
+      - { op: set, path: network.lan.ipv6, value: "0" }
       - { op: del, path: network.lan.ip6assign }
       - { op: del, path: network.lan.delegate }
       - { op: del, path: network.wan6 }
@@ -23,3 +24,11 @@
       /etc/init.d/system reload;
       /etc/init.d/network reload 2>/dev/null || true;
       /etc/init.d/dnsmasq reload 2>/dev/null || true
+
+# После удаления ip6assign на br-lan может остаться старый глобальный адрес
+# (deprecated, но с живым valid_lft). Убираем его сразу, не дожидаясь истечения.
+- name: Убрать оставшиеся глобальные IPv6-адреса с LAN
+  ansible.builtin.raw: |
+    ip -6 addr flush dev br-lan scope global 2>/dev/null || true
+    echo IPV6_FLUSHED
+  changed_when: false

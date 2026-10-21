@@ -1,8 +1,9 @@
 ---
 # Настройка нового роутера Xiaomi AX3000T: OpenWrt 24.10 + Forkop + SQM.
 #
-# Предполагается, что роутер уже прошит OpenWrt 24.10 и доступен по SSH
-# (свежая прошивка: 192.168.1.1, root без пароля).
+# Предполагается, что роутер уже прошит OpenWrt 24.10, LAN и WAN настроены
+# вручную, роутер доступен по SSH по своему LAN-адресу
+# (на свежей прошивке root без пароля).
 #
 #   ansible-playbook playbooks/site.yml -e @vars/router.yml
 #
@@ -11,10 +12,22 @@
   gather_facts: false
   serial: 1
 
+  vars:
+    # Пароль Wi-Fi (оба диапазона) и пароль root — один и тот же.
+    # Спрашивается при запуске и на диск не пишется.
+    new_root_password: "{{ router_password }}"
+    wifi_2g_key: "{{ router_password }}"
+    wifi_5g_key: "{{ router_password }}"
+
   vars_prompt:
     - name: router_hostname
       prompt: "Hostname нового роутера"
       private: false
+
+    - name: router_password
+      prompt: "Пароль Wi-Fi (2.4/5 ГГц) и новый пароль root"
+      private: true
+      confirm: true
 
     - name: forkop_community_lists_input
       prompt: "Community-списки Forkop через запятую (пусто — без списков)"
@@ -34,20 +47,83 @@
         forkop_community_lists: >-
           {{ forkop_community_lists_input.split(',') | map('trim') | reject('equalto', '') | list }}
 
-    - name: Проверить обязательные переменные
+    - name: Проверить формат подписок Forkop
       ansible.builtin.assert:
         that:
-          - new_root_password | length >= 8
-          - wifi_2g_ssid | length > 0
-          - wifi_2g_key | length >= 8
-          - wifi_5g_ssid | length > 0
-          - wifi_5g_key | length >= 8
-          - forkop_main_subscriptions | select | list | length > 0
-          - forkop_russian_subscription | length > 0
+          - forkop_subscriptions_input is sequence
+          - forkop_subscriptions_input is not string
         fail_msg: >-
-          Не заданы обязательные переменные.
-          Возьми vars/router.example.yml за основу:
-          ansible-playbook playbooks/site.yml -e @vars/router.yml
+          forkop_subscriptions_input должен быть списком URL
+          (по одному URL на строку)
+        quiet: true
+      when: forkop_subscriptions_input is defined
+
+    - name: Разобрать подписки Forkop из vars/router.yml
+      ansible.builtin.set_fact:
+        forkop_subscriptions: >-
+          {{ forkop_subscriptions_input
+             | map('string')
+             | map('trim')
+             | reject('equalto', '')
+             | list }}
+      when: forkop_subscriptions_input is defined
+
+    - name: Спросить количество подписок Forkop
+      ansible.builtin.pause:
+        prompt: "Сколько URL подписок Forkop? (одинаковы для main и russian)"
+      register: forkop_subscription_count_input
+      when: forkop_subscriptions_input is not defined
+
+    - name: Задать количество подписок Forkop
+      ansible.builtin.set_fact:
+        forkop_subscription_count: >-
+          {{ forkop_subscription_count_input.user_input | default('1', true) | trim }}
+      when: forkop_subscriptions_input is not defined
+
+    - name: Проверить количество подписок Forkop
+      ansible.builtin.assert:
+        that:
+          - forkop_subscription_count | int >= 1
+        fail_msg: "Количество подписок должно быть числом не меньше 1"
+        quiet: true
+      when: forkop_subscriptions_input is not defined
+
+    - name: Спросить URL подписок Forkop
+      ansible.builtin.pause:
+        prompt: "URL подписки {{ item }}/{{ forkop_subscription_count }} (main и russian)"
+        echo: false
+      loop: "{{ range(1, forkop_subscription_count | int + 1) | list }}"
+      register: forkop_subscription_urls
+      no_log: true
+      when: forkop_subscriptions_input is not defined
+
+    - name: Собрать подписки Forkop из ответов
+      ansible.builtin.set_fact:
+        forkop_subscriptions: >-
+          {{ forkop_subscription_urls.results
+             | map(attribute='user_input')
+             | map('trim')
+             | reject('equalto', '')
+             | list }}
+      when: forkop_subscriptions_input is not defined
+
+    - name: Проверить, что введены все URL подписок
+      ansible.builtin.assert:
+        that:
+          - forkop_subscriptions | length == forkop_subscription_count | int
+        fail_msg: >-
+          Введено {{ forkop_subscriptions | length }}
+          из {{ forkop_subscription_count }} URL подписок
+        quiet: true
+      when: forkop_subscriptions_input is not defined
+
+    - name: Проверить подписки Forkop
+      ansible.builtin.assert:
+        that:
+          - forkop_subscriptions | length > 0
+        fail_msg: >-
+          Список подписок Forkop пуст. Укажи forkop_subscriptions_input
+          в vars/router.yml или ответь на вопросы playbook.
         quiet: true
 
     - name: Проверить связь с роутером
@@ -59,6 +135,51 @@
     - name: Показать версию прошивки
       ansible.builtin.debug:
         msg: "{{ site_release.stdout_lines }}"
+
+    # SSID = xiaomi_XXXX, где XXXX — последние 4 hex-символа MAC-адреса радио,
+    # отдельно для 2.4 ГГц и 5 ГГц.
+    - name: Определить SSID по MAC-адресам радио
+      ansible.builtin.raw: |
+        for d in /sys/class/ieee80211/phy*; do
+          phy="$(basename "$d")"
+          mac="$(cat "$d/macaddress" 2>/dev/null)"
+          [ -n "$mac" ] || continue
+          suffix="$(printf '%s' "$mac" | tr -d ':' | tail -c 4)"
+          iw phy "$phy" info 2>/dev/null | grep -q '2412.0 MHz' && echo "WIFI_2G=$suffix"
+          iw phy "$phy" info 2>/dev/null | grep -q '5180.0 MHz' && echo "WIFI_5G=$suffix"
+        done
+      register: site_wifi_ssid_raw
+      changed_when: false
+
+    - name: Задать SSID xiaomi_XXXX для 2.4 и 5 ГГц
+      ansible.builtin.set_fact:
+        wifi_2g_ssid: >-
+          xiaomi_{{
+          site_wifi_ssid_raw.stdout_lines
+          | select('match', 'WIFI_2G=')
+          | map('regex_replace', '^WIFI_2G=', '')
+          | list | first | default('')
+          }}
+        wifi_5g_ssid: >-
+          xiaomi_{{
+          site_wifi_ssid_raw.stdout_lines
+          | select('match', 'WIFI_5G=')
+          | map('regex_replace', '^WIFI_5G=', '')
+          | list | first | default('')
+          }}
+
+    - name: Проверить обязательные переменные
+      ansible.builtin.assert:
+        that:
+          - router_password | length >= 8
+          - wifi_2g_ssid | length > 0
+          - wifi_5g_ssid | length > 0
+          - forkop_subscriptions | length > 0
+        fail_msg: >-
+          Не заданы обязательные переменные.
+          Hostname, пароли и подписки Forkop спрашиваются при запуске.
+          ansible-playbook playbooks/site.yml -e @vars/router.yml
+        quiet: true
 
   roles:
     - network

@@ -1,5 +1,8 @@
 ---
 # SQM (шейпинг) — как на эталоне: cake + piece_of_cake.qos на WAN.
+# Пустое значение = взять фактический l3_device интерфейса wan
+# (pppoe-wan при PPPoE, wan при DHCP). Можно зафиксировать вручную.
+sqm_interface: ""
 sqm_enabled: true
 sqm_download_kbit: 85000
 sqm_upload_kbit: 10000

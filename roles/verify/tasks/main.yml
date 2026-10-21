@@ -19,7 +19,8 @@
     fi
 
     wan_ip="$(ifstatus wan 2>/dev/null | jsonfilter -e '@["ipv4-address"][0].address' 2>/dev/null)"
-    [ -n "$wan_ip" ] && add_ok "WAN PPPoE поднят, адрес $wan_ip" || add_fail "WAN PPPoE не получил адрес"
+    wan_proto="$(ifstatus wan 2>/dev/null | jsonfilter -e '@.proto' 2>/dev/null)"
+    [ -n "$wan_ip" ] && add_ok "WAN (${wan_proto:-unknown}) поднят, адрес $wan_ip" || add_fail "WAN не получил адрес"
 
     if ip -6 addr show dev br-lan scope global 2>/dev/null | grep -q 'inet6'; then
       add_fail "на br-lan есть глобальный IPv6"
@@ -41,9 +42,13 @@
 
     [ "$(uci -q get system.@system[0].hostname)" = "{{ router_hostname }}" ] && add_ok "hostname: {{ router_hostname }}" || add_fail "hostname не совпадает"
 
-    wan_dev="$(ifstatus wan 2>/dev/null | jsonfilter -e '@.l3_device' 2>/dev/null)"
+    sqm_if="{{ sqm_interface }}"
     if [ "{{ '1' if sqm_enabled else '0' }}" = "1" ]; then
-      tc qdisc show dev "$wan_dev" 2>/dev/null | grep -q cake && add_ok "SQM (cake) активен на $wan_dev" || add_fail "SQM не активен на $wan_dev"
+      if [ -n "$sqm_if" ] && tc qdisc show dev "$sqm_if" 2>/dev/null | grep -q cake; then
+        add_ok "SQM (cake) активен на $sqm_if"
+      else
+        add_fail "SQM не активен на ${sqm_if:-неизвестном интерфейсе}"
+      fi
     fi
 
     if [ "$fails" -eq 0 ]; then

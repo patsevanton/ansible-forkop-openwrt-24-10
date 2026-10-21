@@ -16,14 +16,16 @@
 ## Сеть
 
 - LAN: `br-lan` `192.168.3.1/24`, DSA-порты lan2–lan4, `ip6assign 60`, `delegate 0`
-- WAN: PPPoE, IPv6 выключен, `sourcefilter 0`, MAC клонирован (`cc:d8:43:19:8f:67`)
+- WAN: PPPoE, IPv6 выключен, `sourcefilter 0`, MAC не задан (`macaddr` в
+  `network.wan` отсутствует); WAN-MAC аппаратный и отличается от LAN-MAC
 - DHCP: `100–249`, аренда 12 ч (дефолт)
 - Firewall: дефолт, DNAT/проброса портов нет
 
 ## Wi-Fi
 
-- 2.4 ГГц: канал 1, HE20, `cell_density 0`, WPA2-PSK
-- 5 ГГц: канал 36, HE80, `cell_density 0`, WPA2-PSK
+- 2.4 ГГц: канал 1, HE20, `cell_density 0`, WPA2-PSK, SSID `xiaomi_XXXX`
+- 5 ГГц: канал 36, HE80, `cell_density 0`, WPA2-PSK, SSID `xiaomi_XXXX`
+- `XXXX` — последние 4 hex-символа MAC-адреса радио (у 2.4 и 5 ГГц свои)
 - Страна не задана
 
 ## Система

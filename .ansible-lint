@@ -1,6 +1,6 @@
 ---
 # Переменные ролей намеренно без префиксов: часть из них задаётся
 # пользователем через -e @vars/router.yml (wan_pppoe_username, wifi_2g_ssid,
-# forkop_main_subscriptions и т.п.), префиксы ролей сделали бы интерфейс хуже.
+# forkop_subscriptions и т.п.), префиксы ролей сделали бы интерфейс хуже.
 skip_list:
   - var-naming[no-role-prefix]
