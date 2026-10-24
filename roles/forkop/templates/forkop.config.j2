@@ -118,10 +118,17 @@ config urltest
 	option detect_server_country 'flag_emoji'
 	list exclude_countries 'GB'
 	list exclude_countries 'RU'
+{% for code in forkop_urltest_exclude_countries %}
+	list exclude_countries '{{ code }}'
+{% endfor %}
 	# Узел "🚀 Авто выбор" из подписки падает с reality verification failed
 	# и ломает загрузку rule-set через URLTest при старте sing-box.
 	list exclude_outbounds '🚀 Авто выбор'
 	option exclude_proxy_parameters '0'
+	# Служебные узлы подписки: "❗️Белые списки ниже" и
+	# "❗️ Осталось трафика: NN GiB". Второй меняет имя при каждом
+	# обновлении подписки, поэтому исключаем по префиксу, а не по имени.
+	list exclude_regex '^❗'
 
 config priority_level 'pl_primary'
 	option group 'pg_77450153'

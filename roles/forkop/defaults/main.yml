@@ -15,6 +15,42 @@ forkop_community_lists: []
 #   "sing-box did not reach a stable running state after start. Aborted."
 forkop_download_lists_via_proxy: '0'
 
+# Страны, в которых ни один узел подписки не ответил на health-check URLTest.
+# Снято на рабочем роутере 192.168.2.1 2026-10-24 по Clash API (/proxies):
+# 16 срезов за 16 минут, узел считался живым, если отвечал хотя бы в одном
+# срезе. В этих странах не ответил ни один узел (JM и ER — один раз из 18).
+# Узлы из списка не участвуют в URLTest, чтобы мёртвые серверы не растягивали
+# проход проверки. При смене подписки список надо пересобрать.
+forkop_urltest_exclude_countries:
+  - AW
+  - BB
+  - BM
+  - BW
+  - CG
+  - CI
+  - CN
+  - CW
+  - ER
+  - FJ
+  - GT
+  - GU
+  - IR
+  - JE
+  - JM
+  - JO
+  - KY
+  - MH
+  - ML
+  - MV
+  - PS
+  - RW
+  - SC
+  - SR
+  - SZ
+  - TT
+  - VA
+  - VI
+
 # Сколько ждать, пока поднимутся sing-box и DNS.
 forkop_start_retries: 40
 forkop_start_delay: 3
