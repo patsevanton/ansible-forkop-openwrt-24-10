@@ -53,15 +53,41 @@
   changed_when: false
   failed_when: false
 
-- name: Записать конфиг Forkop
+# Dropbear (sshd в OpenWrt) принимает команду не длиннее 9000 байт
+# (MAX_CMD_LEN) и молча рвёт соединение, если она больше. Конфиг с подписками
+# в один такой вызов не влезает, поэтому пишем его частями по 10 строк.
+- name: Начать запись конфига Forkop
   ansible.builtin.raw: |
     set -e
     if [ -f /etc/config/forkop ] && [ ! -f /etc/config/forkop.orig ]; then
       cp -f /etc/config/forkop /etc/config/forkop.orig
     fi
-    cat > /etc/config/forkop.new <<'ANSIBLE_FORKOP_EOF'
-    {{ forkop_config }}
+    : > /etc/config/forkop.new
+  when: forkop_remote_hash.stdout | trim != forkop_config_hash
+  changed_when: false
+
+- name: Подготовить части конфига Forkop
+  ansible.builtin.set_fact:
+    # В raw подставляем уже готовую строку: фильтр join('\n') прямо в raw
+    # Ansible экранирует в литерал \n.
+    forkop_config_chunks: "{{ forkop_config.splitlines() | batch(10) | map('join', '\n') | list }}"
+  when: forkop_remote_hash.stdout | trim != forkop_config_hash
+
+- name: Дописать конфиг Forkop
+  ansible.builtin.raw: |
+    set -e
+    cat >> /etc/config/forkop.new <<'ANSIBLE_FORKOP_EOF'
+    {{ item }}
     ANSIBLE_FORKOP_EOF
+  loop: "{{ forkop_config_chunks }}"
+  loop_control:
+    label: "{{ item.splitlines()[0] | default('') | truncate(60) }}"
+  when: forkop_remote_hash.stdout | trim != forkop_config_hash
+  changed_when: false
+
+- name: Завершить запись конфига Forkop
+  ansible.builtin.raw: |
+    set -e
     # оставляем ровно один перевод строки в конце (как в forkop_config_hash)
     printf '%s\n' "$(cat /etc/config/forkop.new)" > /etc/config/forkop.new
     mv /etc/config/forkop.new /etc/config/forkop

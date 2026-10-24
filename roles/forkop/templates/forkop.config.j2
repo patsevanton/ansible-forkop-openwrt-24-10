@@ -49,18 +49,14 @@ config section 'main'
 	option mixed_proxy_enabled '0'
 	option resolve_real_ip_for_routing '0'
 	option dashboard_filter_mode 'exclude'
-	option dashboard_detect_server_country 'country_is'
+	option dashboard_detect_server_country 'flag_emoji'
 	option dashboard_exclude_proxy_parameters '0'
 {% for name in forkop_community_lists %}
 	list community_lists '{{ name }}'
 {% endfor %}
 	list dashboard_exclude_countries 'GB'
 	list dashboard_exclude_countries 'RU'
-	list dashboard_exclude_outbounds '⚪️ Получите в боте @gruVPNbot'
-	list dashboard_exclude_outbounds '🇬🇧 Великобритания N1 (YouTube без рек)'
-	list dashboard_exclude_outbounds '⤵️ Есть обход белых списков'
 	list dashboard_exclude_outbounds '🚀 Авто выбор'
-	list dashboard_exclude_outbounds '🇷🇺 Россия N1'
 
 config section 'russian'
 	option enabled '1'
@@ -123,10 +119,6 @@ config priority_level 'pl_primary'
 	list exclude_countries 'GB'
 {% for code in forkop_priority_exclude_countries %}
 	list exclude_countries '{{ code }}'
-{% endfor %}
-	# Флаг есть не у всех RU-узлов, поэтому дополнительно отсекаем их по имени.
-{% for pattern in forkop_priority_exclude_regex %}
-	list exclude_regex '{{ pattern }}'
 {% endfor %}
 
 config priority_level 'pl_near'
