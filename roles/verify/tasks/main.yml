@@ -18,6 +18,21 @@
       add_fail "dnsmasq не переведён на DNS Forkop"
     fi
 
+    {% if forkop_main_ip_cidr | length > 0 %}
+    # Без этих подсетей в nft трафик на дата-центры Telegram идёт мимо прокси
+    # (fake-IP тут не участвует, клиент ходит по IP). У секции с приоритетной
+    # группой forkop держит подсети в forkop_rule_<секция>_subnets, без группы — в forkop_subnets.
+    tg_set=""
+    for set_name in forkop_rule_main_subnets forkop_subnets; do
+      nft list set inet ForkopTable "$set_name" 2>/dev/null | grep -q '149\.154\.160\.0/20' && tg_set="$set_name"
+    done
+    if [ -n "$tg_set" ]; then
+      add_ok "подсети Telegram помечаются для прокси ($tg_set)"
+    else
+      add_fail "в nft нет подсетей Telegram — трафик на дата-центры пойдёт напрямую"
+    fi
+    {% endif %}
+
     wan_ip="$(ifstatus wan 2>/dev/null | jsonfilter -e '@["ipv4-address"][0].address' 2>/dev/null)"
     wan_proto="$(ifstatus wan 2>/dev/null | jsonfilter -e '@.proto' 2>/dev/null)"
     [ -n "$wan_ip" ] && add_ok "WAN (${wan_proto:-unknown}) поднят, адрес $wan_ip" || add_fail "WAN не получил адрес"

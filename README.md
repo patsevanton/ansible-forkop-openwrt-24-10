@@ -19,8 +19,18 @@ LAN, Wi-Fi, Forkop (бывший Podkop Plus) и SQM — по образцу с�
 6. **verify** — итоговый отчёт по проверкам.
 7. **finalize** — установка пароля root (последним шагом).
 
-Домены и IP-адреса Forkop (`option domain` / `option ip_cidr`) не переносятся —
-их настраивают вручную в LuCI → Forkop.
+Домены Forkop (`option domain`) не переносятся — их настраивают вручную
+в LuCI → Forkop. Из IP-условий переносятся только подсети Telegram
+(`forkop_main_ip_cidr` в `roles/forkop/defaults/main.yml`, пишутся в
+`option ip_cidr` секции `main`).
+
+Подсети Telegram нужны обязательно: Forkop заворачивает в прокси только
+fake-IP (`198.18.0.0/15`), а клиент Telegram ходит на захардкоженные адреса
+дата-центров без DNS-запроса. Без `ip_cidr` такой трафик не попадает ни в
+sing-box, ни в tproxy — уходит напрямую в WAN и там режется провайдером.
+Симптом: YouTube и `telegram.org` в браузере работают, а приложение стоит на
+«Connecting…», в `conntrack` висят `SYN_SENT … [UNREPLIED]` на `149.154.*`,
+`91.108.*`, `194.221.*`.
 
 `download_lists_via_proxy` в роли выключен (`'0'`): rule-set'ы community-списков
 качаются напрямую. Если включить, sing-box на старте тянет их через

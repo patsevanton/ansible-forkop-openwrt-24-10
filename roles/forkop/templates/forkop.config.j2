@@ -1,7 +1,8 @@
 # /etc/config/forkop
 # Сгенерировано Ansible из эталонного роутера (Forkop 1.0.5).
-# Домены и IP-адреса (option domain / option ip_cidr) не переносятся —
-# их настраивают вручную в LuCI -> Forkop.
+# Домены (option domain) не переносятся — их настраивают вручную
+# в LuCI -> Forkop. Из IP переносятся только подсети Telegram
+# (forkop_main_ip_cidr): без них трафик на дата-центры Telegram минует прокси.
 
 config settings 'settings'
 	option config_version '1.0.5'
@@ -54,6 +55,11 @@ config section 'main'
 {% for name in forkop_community_lists %}
 	list community_lists '{{ name }}'
 {% endfor %}
+{% if forkop_main_ip_cidr | length > 0 %}
+	# LuCI пишет это поле одной строкой (form.TextValue, option ip_cidr),
+	# а не списком — Forkop ждёт CIDR через пробел.
+	option ip_cidr '{{ forkop_main_ip_cidr | join(' ') }}'
+{% endif %}
 	list dashboard_exclude_countries 'GB'
 	list dashboard_exclude_countries 'RU'
 	list dashboard_exclude_outbounds '🚀 Авто выбор'
