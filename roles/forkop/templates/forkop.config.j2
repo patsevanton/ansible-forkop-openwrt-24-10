@@ -124,6 +124,10 @@ config priority_level 'pl_primary'
 {% for code in forkop_priority_exclude_countries %}
 	list exclude_countries '{{ code }}'
 {% endfor %}
+	# Флаг есть не у всех RU-узлов, поэтому дополнительно отсекаем их по имени.
+{% for pattern in forkop_priority_exclude_regex %}
+	list exclude_regex '{{ pattern }}'
+{% endfor %}
 
 config priority_level 'pl_near'
 	option group 'pg_77450153'
