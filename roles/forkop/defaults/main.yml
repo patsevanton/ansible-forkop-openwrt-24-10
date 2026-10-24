@@ -8,6 +8,13 @@ forkop_subscriptions: []
 # Community-списки задаются ответом на вопрос при запуске playbook.
 forkop_community_lists: []
 
+# Скачивать rule-set'ы community-списков напрямую, а не через прокси.
+# С '1' sing-box получает rule_set.download_detour = main-out, где ещё не
+# выбран живой узел (URLTest не успел прогнаться). Загрузка виснет, на 10-й
+# секунде forkop убивает sing-box и уходит в бесконечный ретрай:
+#   "sing-box did not reach a stable running state after start. Aborted."
+forkop_download_lists_via_proxy: '0'
+
 # Сколько ждать, пока поднимутся sing-box и DNS.
 forkop_start_retries: 40
 forkop_start_delay: 3

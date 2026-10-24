@@ -22,6 +22,12 @@ LAN, Wi-Fi, Forkop (бывший Podkop Plus) и SQM — по образцу с�
 Домены и IP-адреса Forkop (`option domain` / `option ip_cidr`) не переносятся —
 их настраивают вручную в LuCI → Forkop.
 
+`download_lists_via_proxy` в роли выключен (`'0'`): rule-set'ы community-списков
+качаются напрямую. Если включить, sing-box на старте тянет их через
+`main-out` → URLTest, где живой узел ещё не выбран, загрузка виснет и forkop
+убивает sing-box через 10 секунд — `sing-box did not reach a stable running
+state after start`. Включай только если GitHub с роутера напрямую недоступен.
+
 ## Требования
 
 - Роутер уже прошит OpenWrt 24.10.x, LAN настроен (например, `192.168.2.1/24`),
@@ -93,6 +99,7 @@ ansible-playbook playbooks/site.yml -e @vars/router.yml \
 | Переменная | Что это |
 |---|---|
 | `ansible_host` | текущий LAN-адрес роутера (задан вручную) |
+| `forkop_download_lists_via_proxy` | `'0'` (по умолчанию) — rule-set'ы качаются напрямую, `'1'` — через прокси |
 | `sqm_enabled`, `sqm_download_kbit`, `sqm_upload_kbit` | шейпинг |
 | `sqm_interface` | необязательно: по умолчанию берётся `l3_device` интерфейса `wan` (`pppoe-wan` или `wan`) |
 
