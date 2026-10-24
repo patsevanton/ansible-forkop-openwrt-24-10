@@ -98,57 +98,55 @@ config priority_group 'pg_77450153'
 	option active_check_interval '5s'
 	option check_timeout '2s'
 	option recovery_check_interval '15s'
-	option pick_fastest '1'
+	option pick_fastest '0'
 	option switch_to_faster_same_priority '0'
 	option fastest_check_interval '3m'
 	option interrupt_exist_connections '1'
 	option pin_dashboard '1'
 	option name 'main-priority'
 
-config urltest
-	option section 'main'
-	option name 'URLTest'
-	option check_interval '1m'
-	option tolerance '50'
-	option testing_url 'https://www.gstatic.com/generate_204'
-	option idle_timeout '1d'
-	option interrupt_exist_connections '1'
-	option pin_dashboard '1'
-	option filter_mode 'exclude'
-	option detect_server_country 'flag_emoji'
-	list exclude_countries 'GB'
-	list exclude_countries 'RU'
-{% for code in forkop_urltest_exclude_countries %}
-	list exclude_countries '{{ code }}'
-{% endfor %}
-	# Узел "🚀 Авто выбор" из подписки падает с reality verification failed
-	# и ломает загрузку rule-set через URLTest при старте sing-box.
-	list exclude_outbounds '🚀 Авто выбор'
-	option exclude_proxy_parameters '0'
-	# Служебные узлы подписки: "❗️Белые списки ниже" и
-	# "❗️ Осталось трафика: NN GiB". Второй меняет имя при каждом
-	# обновлении подписки, поэтому исключаем по префиксу, а не по имени.
-	list exclude_regex '^❗'
-
 config priority_level 'pl_primary'
 	option group 'pg_77450153'
-	option name 'Основные'
+	option name 'Основные (hy2)'
 	option order '0'
 	option direct '0'
-	option filter_mode 'exclude'
-	option detect_server_country 'country_is'
+	# Только hysteria2. Демон проверяет активный узел каждые 5 с и при отказе
+	# берёт первый живой, тратя до 2 с на каждую мёртвую пробу, поэтому уровень
+	# должен быть коротким: hy2-узлов в подписке единицы и они стабильны.
+	option filter_mode 'mixed'
+	option include_proxy_parameters '1'
+	list include_protocols 'hysteria2'
+	# Страна по флагу в имени: country_is резолвит домены узлов, а они за CDN
+	# и почти все определяются как AE.
+	option detect_server_country 'flag_emoji'
 	list exclude_countries 'RU'
 	list exclude_countries 'GB'
+{% for code in forkop_priority_exclude_countries %}
+	list exclude_countries '{{ code }}'
+{% endfor %}
+
+config priority_level 'pl_near'
+	option group 'pg_77450153'
+	option name 'Ближние'
+	option order '1'
+	option direct '0'
+	# Если все hy2 легли (например, провайдер режет UDP) — ближние страны,
+	# где есть стабильно живые узлы.
+	option filter_mode 'include'
+	option detect_server_country 'flag_emoji'
+{% for code in forkop_priority_near_countries %}
+	list include_countries '{{ code }}'
+{% endfor %}
 
 config priority_level 'pl_reserve'
 	option group 'pg_77450153'
 	option name 'Резерв'
-	option order '1'
+	option order '2'
 	option direct '0'
 	option filter_mode 'disabled'
 
 config priority_level 'pl_direct'
 	option group 'pg_77450153'
 	option name 'Напрямую'
-	option order '2'
+	option order '3'
 	option direct '1'
